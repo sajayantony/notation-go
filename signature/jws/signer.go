@@ -2,6 +2,8 @@ package jws
 
 import (
 	"context"
+	"crypto"
+	"crypto/x509"
 	"errors"
 
 	"github.com/golang-jwt/jwt"
@@ -16,10 +18,48 @@ var _ notary.Signer = &Signer{}
 
 type Signer struct {
 	Method             jwt.SigningMethod
-	Key                interface{}
+	Key                crypto.PrivateKey
 	KeyID              string
 	CertChain          [][]byte
 	TimeStampAuthority string
+}
+
+func NewSigner(keyID string, key crypto.PrivateKey) (*Signer, error) {
+	if keyID == "" {
+		return nil, errors.New("missing signer info")
+	}
+
+	method, err := SigningMethodFromKey(key)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Signer{
+		Method: method,
+		Key:    key,
+		KeyID:  keyID,
+	}, nil
+}
+
+func NewSignerFromCerts(certs []*x509.Certificate, key crypto.PrivateKey) (*Signer, error) {
+	if len(certs) == 0 {
+		return nil, errors.New("missing signer info")
+	}
+
+	method, err := SigningMethodFromKey(key)
+	if err != nil {
+		return nil, err
+	}
+	rawCerts := make([][]byte, 0, len(certs))
+	for _, cert := range certs {
+		rawCerts = append(rawCerts, cert.Raw)
+	}
+
+	return &Signer{
+		Method:    method,
+		Key:       key,
+		CertChain: rawCerts,
+	}, nil
 }
 
 func (s *Signer) Sign(ctx context.Context, desc oci.Descriptor, opts *notary.SignOptions) ([]byte, error) {

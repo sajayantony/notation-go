@@ -1,27 +1,16 @@
 package jws
 
 import (
-	"errors"
 	"time"
 
+	"github.com/golang-jwt/jwt"
 	"github.com/notaryproject/notary/v2"
 	oci "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 const MediaTypeNotaryPayload = "application/vnd.cncf.notary.signature.v2.payload+json"
 
-type payload struct {
-	Notary   notaryClaim `json:"notary.v2,omitempty"`
-	IssuedAt time.Time   `json:"iat"`
-	Expiry   time.Time   `json:"exp"`
-}
-
-func (p *payload) Valid() error {
-	if !p.IssuedAt.Before(p.Expiry) {
-		return errors.New("invalid expiry")
-	}
-	return nil
-}
+const notaryClaimName = "notary.v2"
 
 type notaryClaim struct {
 	SubjectManifest  oci.Descriptor   `json:"subjectManifest"`
@@ -33,15 +22,15 @@ type signedAttributes struct {
 	Custom   map[string]interface{} `json:"custom,omitempty"`
 }
 
-func packPayload(desc oci.Descriptor, opts *notary.SignOptions) *payload {
+func packPayload(desc oci.Descriptor, opts *notary.SignOptions) jwt.MapClaims {
 	var reservedAttributes map[string]interface{}
 	if opts.Identity != "" {
 		reservedAttributes = map[string]interface{}{
 			"identity": opts.Identity,
 		}
 	}
-	return &payload{
-		Notary: notaryClaim{
+	return jwt.MapClaims{
+		notaryClaimName: notaryClaim{
 			SubjectManifest: oci.Descriptor{
 				MediaType:   desc.MediaType,
 				Digest:      desc.Digest,
@@ -53,7 +42,7 @@ func packPayload(desc oci.Descriptor, opts *notary.SignOptions) *payload {
 				Custom:   opts.Attributes,
 			},
 		},
-		IssuedAt: time.Now().UTC(),
-		Expiry:   opts.Expiry,
+		"iat": float64(time.Now().Unix()),
+		"exp": float64(opts.Expiry.Unix()),
 	}
 }

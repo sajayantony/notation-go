@@ -18,8 +18,8 @@ type Signer interface {
 }
 
 type VerifyOptions struct {
-	Annotations map[string]string
-	Attributes  map[string]interface{}
+	OutAnnotations map[string]string
+	OutAttributes  map[string]interface{}
 }
 
 type Verifier interface {
