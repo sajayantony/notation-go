@@ -10,7 +10,10 @@ import (
 
 const MediaTypeNotaryPayload = "application/vnd.cncf.notary.signature.v2.payload+json"
 
-const notaryClaimName = "notary.v2"
+type payload struct {
+	Notary notaryClaim `json:"notary.v2"`
+	jwt.StandardClaims
+}
 
 type notaryClaim struct {
 	SubjectManifest  oci.Descriptor   `json:"subjectManifest"`
@@ -22,15 +25,15 @@ type signedAttributes struct {
 	Custom   map[string]interface{} `json:"custom,omitempty"`
 }
 
-func packPayload(desc oci.Descriptor, opts *notary.SignOptions) jwt.MapClaims {
+func packPayload(desc oci.Descriptor, opts *notary.SignOptions) *payload {
 	var reservedAttributes map[string]interface{}
 	if opts.Identity != "" {
 		reservedAttributes = map[string]interface{}{
 			"identity": opts.Identity,
 		}
 	}
-	return jwt.MapClaims{
-		notaryClaimName: notaryClaim{
+	return &payload{
+		Notary: notaryClaim{
 			SubjectManifest: oci.Descriptor{
 				MediaType:   desc.MediaType,
 				Digest:      desc.Digest,
@@ -42,7 +45,9 @@ func packPayload(desc oci.Descriptor, opts *notary.SignOptions) jwt.MapClaims {
 				Custom:   opts.Attributes,
 			},
 		},
-		"iat": float64(time.Now().Unix()),
-		"exp": float64(opts.Expiry.Unix()),
+		StandardClaims: jwt.StandardClaims{
+			IssuedAt:  time.Now().Unix(),
+			ExpiresAt: opts.Expiry.Unix(),
+		},
 	}
 }
