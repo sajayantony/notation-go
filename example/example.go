@@ -7,16 +7,17 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/notaryproject/notary/v2"
+	"github.com/notaryproject/notary/v2/crypto"
 	"github.com/notaryproject/notary/v2/registry"
-	x509nv2 "github.com/notaryproject/notary/v2/signature/x509"
 	"github.com/notaryproject/notary/v2/simple"
 )
 
 func main() {
 	if len(os.Args) < 4 {
-		fmt.Println("usage:", os.Args[0], "<key>", "<cert>", "<manifest>", "<references...>")
+		fmt.Println("usage:", os.Args[0], "<key>", "<cert>", "<manifest>", "[reference]")
 	}
 
 	fmt.Println(">>> Initialize signing service")
@@ -44,17 +45,24 @@ func main() {
 	fmt.Println(manifestDescriptor)
 
 	fmt.Println(">>> Sign manifest")
-	sig, err := signing.Sign(ctx, manifestDescriptor, references...)
+	signOpts := &notary.SignOptions{
+		Expiry: time.Now().UTC().Add(time.Hour * 24 * 7),
+	}
+	if len(references) > 0 {
+		signOpts.Identity = references[0]
+	}
+	sig, err := signing.Sign(ctx, manifestDescriptor, signOpts)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	fmt.Println(">>> Verify signature")
-	references, err = signing.Verify(ctx, manifestDescriptor, sig)
+	var verifyOpts notary.VerifyOptions
+	err = signing.Verify(ctx, manifestDescriptor, sig, &verifyOpts)
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println(references)
+	fmt.Println(verifyOpts.ExportIdentity)
 
 	fmt.Println(">>> Put signature")
 	signatureDescriptor, err := client.Put(ctx, sig)
@@ -88,21 +96,21 @@ func main() {
 		}
 
 		fmt.Println(">>> Verify signature:", signatureDigest)
-		references, err = signing.Verify(ctx, manifestDescriptor, sig)
+		err = signing.Verify(ctx, manifestDescriptor, sig, &verifyOpts)
 		if err != nil {
 			log.Println(err)
 			continue
 		}
-		fmt.Println(references)
+		fmt.Println(verifyOpts.ExportIdentity)
 	}
 }
 
-func getSigningService(keyPath, certPath string) (notary.SigningService, error) {
-	key, err := x509nv2.ReadPrivateKeyFile(keyPath)
+func getSigningService(keyPath, certPath string) (notary.Service, error) {
+	key, err := crypto.ReadPrivateKeyFile(keyPath)
 	if err != nil {
 		return nil, err
 	}
-	certs, err := x509nv2.ReadCertificateFile(certPath)
+	certs, err := crypto.ReadCertificateFile(certPath)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +118,7 @@ func getSigningService(keyPath, certPath string) (notary.SigningService, error) 
 	for _, cert := range certs {
 		rootCerts.AddCert(cert)
 	}
-	return simple.NewSigningService(key, certs, certs, rootCerts)
+	return simple.NewJWSService(key, certs, rootCerts)
 }
 
 func getSignatureRegistry(name, username, password string) notary.SignatureRegistry {

@@ -18,6 +18,7 @@ type Signer interface {
 }
 
 type VerifyOptions struct {
+	ExportIdentity    string
 	ExportAnnotations map[string]string
 	ExportAttributes  map[string]interface{}
 }

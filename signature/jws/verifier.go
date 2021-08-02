@@ -208,6 +208,7 @@ func verifyNotaryClaim(claim notaryClaim, actualDesc oci.Descriptor, opts *notar
 		return errors.New("mismatch digest")
 	}
 
+	opts.ExportIdentity, _ = claim.SignedAttributes.Reserved["identity"].(string)
 	opts.ExportAnnotations = expectedDesc.Annotations
 	opts.ExportAttributes = claim.SignedAttributes.Custom
 
