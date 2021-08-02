@@ -8,6 +8,8 @@ import (
 	oci "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
+const MediaTypeNotaryPayload = "application/vnd.cncf.notary.signature.v2.payload+json"
+
 type payload struct {
 	Notary   notaryClaim `json:"notary.v2,omitempty"`
 	IssuedAt time.Time   `json:"iat"`

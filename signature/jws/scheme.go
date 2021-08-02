@@ -42,6 +42,8 @@ func (s *Scheme) Sign(ctx context.Context, desc oci.Descriptor, opts *notary.Sig
 		return nil, err
 	}
 	token := jwt.NewWithClaims(s.SigningMethod, payload)
+	token.Header["cty"] = MediaTypeNotaryPayload
+	token.Header["crit"] = []string{"cty"}
 	compact, err := token.SignedString(s.SigningKey)
 	if err != nil {
 		return nil, err
