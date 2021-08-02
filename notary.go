@@ -13,12 +13,20 @@ type SignOptions struct {
 	Attributes map[string]interface{}
 }
 
+type Signer interface {
+	Sign(ctx context.Context, desc oci.Descriptor, opts *SignOptions) ([]byte, error)
+}
+
 type VerifyOptions struct {
 	Annotations map[string]string
 	Attributes  map[string]interface{}
 }
 
-type Service interface {
-	Sign(ctx context.Context, desc oci.Descriptor, opts *SignOptions) ([]byte, error)
+type Verifier interface {
 	Verify(ctx context.Context, desc oci.Descriptor, signature []byte, opts *VerifyOptions) error
+}
+
+type Service interface {
+	Signer
+	Verifier
 }

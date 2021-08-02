@@ -12,27 +12,27 @@ import (
 	"github.com/shizhMSFT/go-timestamp"
 )
 
-var _ notary.Service = &Scheme{}
+var _ notary.Signer = &Signer{}
 
-type Scheme struct {
-	SigningMethod      jwt.SigningMethod
-	SigningKey         interface{}
-	SigningKeyID       string
-	SigningCertChain   [][]byte
+type Signer struct {
+	Method             jwt.SigningMethod
+	Key                interface{}
+	KeyID              string
+	CertChain          [][]byte
 	TimeStampAuthority string
 }
 
-func (s *Scheme) Sign(ctx context.Context, desc oci.Descriptor, opts *notary.SignOptions) ([]byte, error) {
+func (s *Signer) Sign(ctx context.Context, desc oci.Descriptor, opts *notary.SignOptions) ([]byte, error) {
 	if opts == nil {
 		return nil, errors.New("missing signing options")
 	}
-	if s.SigningMethod == nil {
+	if s.Method == nil {
 		return nil, errors.New("missing signing method")
 	}
-	if s.SigningKey == nil {
+	if s.Key == nil {
 		return nil, errors.New("missing signing key")
 	}
-	if s.SigningKeyID == "" && s.SigningCertChain == nil {
+	if s.KeyID == "" && s.CertChain == nil {
 		return nil, errors.New("missing signer info")
 	}
 
@@ -41,21 +41,18 @@ func (s *Scheme) Sign(ctx context.Context, desc oci.Descriptor, opts *notary.Sig
 	if err := payload.Valid(); err != nil {
 		return nil, err
 	}
-	token := jwt.NewWithClaims(s.SigningMethod, payload)
+	token := jwt.NewWithClaims(s.Method, payload)
 	token.Header["cty"] = MediaTypeNotaryPayload
 	token.Header["crit"] = []string{"cty"}
-	compact, err := token.SignedString(s.SigningKey)
+	compact, err := token.SignedString(s.Key)
 	if err != nil {
 		return nil, err
 	}
 
 	// Generate unsigned header
-	header := make(map[string]interface{})
-	if s.SigningKeyID != "" {
-		header["kid"] = s.SigningKeyID
-	}
-	if s.SigningCertChain != nil {
-		header["x5c"] = s.SigningCertChain
+	header := unprotectedHeader{
+		KeyID:     s.KeyID,
+		CertChain: s.CertChain,
 	}
 
 	// Timestamp JWT
@@ -74,7 +71,7 @@ func (s *Scheme) Sign(ctx context.Context, desc oci.Descriptor, opts *notary.Sig
 		if resp.Status.Status != timestamp.PKIStatusGranted {
 			return nil, errors.New("timestamp: " + resp.Status.StatusString)
 		}
-		header["timestamp"] = resp.TimeStampToken.FullBytes
+		header.TimeStampToken = resp.TimeStampToken.FullBytes
 	}
 
 	// Convert to JWS JSON serialization
@@ -84,8 +81,4 @@ func (s *Scheme) Sign(ctx context.Context, desc oci.Descriptor, opts *notary.Sig
 	}
 
 	return []byte(jwsJSON), nil
-}
-
-func (s *Scheme) Verify(ctx context.Context, desc oci.Descriptor, signature []byte, opts *notary.VerifyOptions) error {
-	panic("not implemented") // TODO: Implement
 }
