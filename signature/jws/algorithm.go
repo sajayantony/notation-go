@@ -11,7 +11,6 @@ import (
 )
 
 // SigningMethodFromKey picks up recommended algorithm for keys
-// Reference: https://datatracker.ietf.org/doc/html/rfc7518#section-3.1
 func SigningMethodFromKey(key interface{}) (jwt.SigningMethod, error) {
 	if k, ok := key.(interface {
 		Public() crypto.PublicKey
@@ -31,7 +30,7 @@ func SigningMethodFromKey(key interface{}) (jwt.SigningMethod, error) {
 		default:
 			return jwt.SigningMethodRS256, nil
 		}
-	case *ecdsa.PublicKey:
+	case *ecdsa.PublicKey: // Reference: https://datatracker.ietf.org/doc/html/rfc7518#section-3.1
 		switch key.Curve.Params().BitSize {
 		case jwt.SigningMethodES256.CurveBits:
 			return jwt.SigningMethodES256, nil
