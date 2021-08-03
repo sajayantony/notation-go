@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 
 	"github.com/golang-jwt/jwt"
@@ -97,8 +98,16 @@ func (s *Signer) Sign(ctx context.Context, desc oci.Descriptor, opts *notary.Sig
 	}
 
 	// Timestamp JWT
+	signature, err := jwsutil.ParseCompact(compact)
+	if err != nil {
+		return nil, err
+	}
 	if s.TimeStampAuthority != "" {
-		req, err := timestamp.NewRequest(digest.FromString(compact))
+		decodedSignature, err := jwt.DecodeSegment(signature.Signature.Signature)
+		if err != nil {
+			return nil, err
+		}
+		req, err := timestamp.NewRequest(digest.FromBytes(decodedSignature))
 		if err != nil {
 			return nil, err
 		}
@@ -116,10 +125,9 @@ func (s *Signer) Sign(ctx context.Context, desc oci.Descriptor, opts *notary.Sig
 	}
 
 	// Convert to JWS JSON serialization
-	jwsJSON, err := jwsutil.ConvertCompactToJSON(compact, header)
+	signature.Unprotected, err = json.Marshal(header)
 	if err != nil {
 		return nil, err
 	}
-
-	return []byte(jwsJSON), nil
+	return []byte(signature.SerializeFlattenedJSON()), nil
 }

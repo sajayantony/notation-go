@@ -74,7 +74,7 @@ func (v *Verifier) Verify(ctx context.Context, desc oci.Descriptor, signature []
 	compact := sig.SerializeCompact()
 
 	// Get verification key
-	key, err := v.getVerificationKey(sig.Unprotected, compact)
+	key, err := v.getVerificationKey(sig.Unprotected, sig.Signature.Signature)
 	if err != nil {
 		return err
 	}
@@ -117,7 +117,7 @@ func (v *Verifier) getVerificationKey(unprotected json.RawMessage, compact strin
 	return v.getVerificationKeyFromCertChain(header.CertChain, header.TimeStampToken, compact)
 }
 
-func (v *Verifier) getVerificationKeyFromCertChain(certChain [][]byte, timeStampToken []byte, compact string) (*VerificationKey, error) {
+func (v *Verifier) getVerificationKeyFromCertChain(certChain [][]byte, timeStampToken []byte, signature string) (*VerificationKey, error) {
 	if len(certChain) == 0 {
 		return nil, errors.New("missing verification info")
 	}
@@ -144,7 +144,11 @@ func (v *Verifier) getVerificationKeyFromCertChain(certChain [][]byte, timeStamp
 		if certErr, ok := err.(x509.CertificateInvalidError); !ok || certErr.Reason != x509.Expired || timeStampToken == nil {
 			return nil, err
 		}
-		verifyOpts.CurrentTime, err = getTimeFromTST(timeStampToken, compact)
+		decodedSignature, err := jwt.DecodeSegment(signature)
+		if err != nil {
+			return nil, err
+		}
+		verifyOpts.CurrentTime, err = getTimeFromTST(timeStampToken, decodedSignature)
 		if err != nil {
 			return nil, err
 		}
@@ -164,7 +168,7 @@ func (v *Verifier) getVerificationKeyFromCertChain(certChain [][]byte, timeStamp
 	}, nil
 }
 
-func getTimeFromTST(tst []byte, message string) (time.Time, error) {
+func getTimeFromTST(tst, message []byte) (time.Time, error) {
 	resp := timestamp.Response{
 		TimeStampToken: asn1.RawValue{
 			FullBytes: tst,
@@ -180,13 +184,13 @@ func getTimeFromTST(tst []byte, message string) (time.Time, error) {
 	return token.GenTime, nil
 }
 
-func verifyMessage(imprint timestamp.MessageImprint, message string) error {
+func verifyMessage(imprint timestamp.MessageImprint, message []byte) error {
 	hash, ok := timestamp.ConvertToHash(imprint.HashAlgorithm.Algorithm)
 	if !ok {
 		return errors.New("hash algorithm not recognized")
 	}
 	h := hash.New()
-	if _, err := h.Write([]byte(message)); err != nil {
+	if _, err := h.Write(message); err != nil {
 		return err
 	}
 	digest := h.Sum(nil)
